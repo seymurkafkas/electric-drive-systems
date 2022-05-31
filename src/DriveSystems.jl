@@ -74,7 +74,6 @@ function make_motor_with_supply(params::InductionMotorParams, supply::ACSupply)
     return motor
 end
 
-
 function make_torque_for_slip_function(motor::InductionMotorWithSupply)
     z_eq = (motor.rfe * im * motor.xm) / (motor.rfe + im * motor.xm) #Magnetising Branch and Core Loss Branch 
     v_th = motor.v_phase * abs((z_eq) / (z_eq + im * motor.x1 + motor.r1)) # Thevenin Z and V
@@ -92,6 +91,17 @@ function make_torque_for_slip_function(motor::InductionMotorWithSupply)
     return torque_for_slip
 end
 
+function make_torque_for_speed_function(motor::InductionMotorWithSupply)
+    torque_for_slip_function = make_torque_for_slip_function(motor)
+
+    function torque_for_speed(n_m)
+        s = (1 - n_m / motor.n_sync)
+        torque = torque_for_slip_function(s)
+        return torque
+    end
+        
+    return torque_for_speed
+end
 
 
 rs = 0; # Resistance Input
@@ -123,7 +133,6 @@ torque_slip_function = make_torque_for_slip_function(motor_with_supply)
 
 using Plots
 
-
 function make_one_dimensional_range(lower , upper , delta)
 
     length =  Int(floor((upper - lower)  / delta))
@@ -153,5 +162,19 @@ torque_speed_plot = plot_function(s_lower,s_upper,s_delta,torque_slip_function)
 display(torque_speed_plot)
 num = readline()
 
-# nm = (1 - s) * n_sync  Mechanical speed in RPM
+
+function part_1()
+    v_per_f_factor = 12
+    delta_n = 10
+    delta_f = 10
+    f_lower = 10
+    f_higher = 100
+end
+
+
+
+function part_2()
+end
+
+#  = (1 - nm / n_sync)    Mechanical speed in RPM
 end
