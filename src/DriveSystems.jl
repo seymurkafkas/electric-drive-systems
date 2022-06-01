@@ -98,9 +98,9 @@ function make_torque_for_slip_function(motor::InductionMotorWithSupply)
     v_th = motor.v_phase * abs((z_eq) / (z_eq + im * motor.x1 + motor.r1)) # Thevenin Z and V
     z_th = (z_eq * (im * motor.x1 + motor.r1)) / (z_eq + (im * motor.x1 + motor.r1))
     w_sync = 2 * motor.n_sync * pi / 60
-    r_th = real(z_th);
-    x_th = imag(z_th);
-    
+    r_th = real(z_th)
+    x_th = imag(z_th)
+
     function torque_for_slip(s::Float64)
         pAirGap = (3 * v_th^2 * (motor.r2 + motor.rs) / s) / (((r_th + (motor.r2 + motor.rs) / s)^2 + (x_th + motor.x2)^2))
         t_ind = pAirGap / w_sync
@@ -111,6 +111,14 @@ function make_torque_for_slip_function(motor::InductionMotorWithSupply)
 end
 
 function calculate_pullout_torque(motor::InductionMotorWithSupply)
+    z_eq = (motor.rfe * im * motor.xm) / (motor.rfe + im * motor.xm) #Magnetising Branch and Core Loss Branch 
+    v_th = motor.v_phase * abs((z_eq) / (z_eq + im * motor.x1 + motor.r1)) # Thevenin Z and V
+    z_th = (z_eq * (im * motor.x1 + motor.r1)) / (z_eq + (im * motor.x1 + motor.r1))
+    w_sync = 2 * motor.n_sync * pi / 60
+    r_th = real(z_th)
+    x_th = imag(z_th)
+    pullout_torque = 3 * v_th^2 / (2 * w_sync * (r_th + sqrt(r_th^2 + (x_th + motor.x2)^2)))
+    return pullout_torque
 end
 
 
@@ -123,22 +131,22 @@ function make_torque_for_speed_function(motor::InductionMotorWithSupply)
         torque = torque_for_slip_function(s)
         return torque
     end
-        
+
     return torque_for_speed
 end
 
 
-rs = 0; # Resistance Input
+rs = 0 # Resistance Input
 p_pair = 1 # Pole Pairs
 f = 50 #Input Frequency in Hz
 f_base = 50    # Frequency Base for reactance values ( assume a linear relationship (X= jwl))
-r1 = 0.4; # Stator Resistance
-x1_base = 1.5; # Stator Base Reactance
-r2 = 0.5; # Rotor Referred (wrt Stator) Resistance
-x2_base = 2; # Rotor Base Referred (wrt Stator) Reactance
-rfe = 400; #Core loss Resistance
-xm_base = 250; # Magnetization Branch Base Reactance
-v_phase = 440; # Phase to Neutral Voltage
+r1 = 0.4 # Stator Resistance
+x1_base = 1.5 # Stator Base Reactance
+r2 = 0.5 # Rotor Referred (wrt Stator) Resistance
+x2_base = 2 # Rotor Base Referred (wrt Stator) Reactance
+rfe = 400 #Core loss Resistance
+xm_base = 250 # Magnetization Branch Base Reactance
+v_phase = 440 # Phase to Neutral Voltage
 n_n = 2920 # Nominal Speed (RPM)
 
 default_induction_motor_params = InductionMotorParams(rs, p_pair,
@@ -151,49 +159,29 @@ default_induction_motor_params = InductionMotorParams(rs, p_pair,
     xm_base,
     n_n)
 
-#default_supply_values = ACSupply(440 / sqrt(3) , 50)
-#motor_with_supply = make_motor_with_supply(default_induction_motor_params,default_supply_values)
-#torque_slip_function = make_torque_for_slip_function(motor_with_supply)
-#torque_speed_function = make_torque_for_speed_function(motor_with_supply)
 
 using Plots
 
-function make_one_dimensional_range(lower , upper , delta)
+function make_one_dimensional_range(lower, upper, delta)
 
-    length =  Int(floor((upper - lower)  / delta))
+    length = Int(floor((upper - lower) / delta))
     result = collect(range(lower, upper, length=length))
     return result
 end
 
-function plot_function(x_lower, x_upper, x_delta, func, append:: Bool)
-    domain_values = make_one_dimensional_range(x_lower,x_upper, x_delta)
+function plot_function(x_lower, x_upper, x_delta, func, append::Bool)
+    domain_values = make_one_dimensional_range(x_lower, x_upper, x_delta)
     range_values = map(func, domain_values)
 
     if append
-        return plot!(domain_values,range_values)
+        return plot!(domain_values, range_values)
     else
-        return plot(domain_values,range_values)
+        return plot(domain_values, range_values)
     end
 end
 
-#x = 1:10; y = rand(10); # These are the plotting data
-#x= make_one_dimensional_range(15,25,2)
-#y = rand(length(x))
 
-#display(plot(x, y))
-
-
-s_lower = 0 
-s_upper = 1
-s_delta = 0.01
-
-#torque_slip_plot = plot_function(s_lower,s_upper,s_delta,torque_slip_function)
-
-#torque_speed_plot = plot_function(n_lower, n_upper , n_delta,torque_speed_function)
-#display(torque_speed_plot)
-#num = readline()
-
-function calculate_v_for_f_for_controller( controller_settings::VFControllerSettings, frequency::Float64)
+function calculate_v_for_f_for_controller(controller_settings::VFControllerSettings, frequency::Float64)
     if frequency <= controller_settings.f_base
         return frequency * controller_settings.v_rated / controller_settings.f_base
     else
@@ -202,9 +190,21 @@ function calculate_v_for_f_for_controller( controller_settings::VFControllerSett
 end
 
 
-function set_motor_inputs_with_controller!(motor::InductionMotorWithSupply, controller_settings:: VFControllerSettings , frequency_new::Float64)
-    v_phase_new = calculate_v_for_f_for_controller(controller_settings,frequency_new)
-    update_motor!(motor, frequency_new,v_phase_new)
+function set_motor_inputs_with_controller!(motor::InductionMotorWithSupply, controller_settings::VFControllerSettings, frequency_new::Float64)
+    v_phase_new = calculate_v_for_f_for_controller(controller_settings, frequency_new)
+    update_motor!(motor, frequency_new, v_phase_new)
+end
+
+function get_pullout_torque_for_frequency_function(motor, controller)
+    function pullout_torque_function(frequency)
+        frequency = convert(Float64, frequency)
+        v_new = calculate_v_for_f_for_controller(controller, frequency)
+        set_motor_inputs_with_controller!(motor, controller, frequency)
+        pullout_torque = calculate_pullout_torque(motor)
+        return pullout_torque
+    end
+
+    return pullout_torque_function
 end
 
 
@@ -219,24 +219,43 @@ function part_1()
     n_upper = 9000
 
     controller = VFControllerSettings(440, 50)
-    default_supply_values = ACSupply(440 , 50)
-    motor = make_motor_with_supply(default_induction_motor_params,default_supply_values)
+    default_supply_values = ACSupply(440, 50)
+    motor = make_motor_with_supply(default_induction_motor_params, default_supply_values)
 
-    frequency_values = range(f_lower, f_higher , step = delta_f)
-
+    frequency_values = range(f_lower, f_higher, step=delta_f)
 
     for f in frequency_values
         println(f)
-        set_motor_inputs_with_controller!(motor,controller,convert(Float64,f))
+        set_motor_inputs_with_controller!(motor, controller, convert(Float64, f))
         torque_speed_function = make_torque_for_speed_function(motor)
-        current_cumulative_plot = plot_function(n_lower, n_upper,delta_n,torque_speed_function,true)
+        current_cumulative_plot = plot_function(n_lower, n_upper, delta_n, torque_speed_function, true)
         display(current_cumulative_plot)
         #num = readline()
     end
 
-        num = readline()
+    num = readline()
 end
 
+
+
+function part_2()
+    f_lower = 10
+    f_higher = 100
+    delta_f = 1
+
+    frequency_values = range(f_lower, f_higher, step=delta_f)
+
+    controller = VFControllerSettings(440, 50)
+    default_supply_values = ACSupply(440, 50)
+    motor = make_motor_with_supply(default_induction_motor_params, default_supply_values)
+
+    
+    pullout_torque_for_frequency_function = get_pullout_torque_for_frequency_function(motor, controller)
+    pullout_values_for_frequencies = map(pullout_torque_for_frequency_function, frequency_values)
+    curve = plot(frequency_values, pullout_values_for_frequencies)
+    display(curve)
+    num = readline()
+end
 
 
 
@@ -245,33 +264,28 @@ function test()
     f_higher = 100
     delta_f = 1
 
-    frequency_values = range(f_lower, f_higher , step = delta_f)
+    frequency_values = range(f_lower, f_higher, step=delta_f)
 
     controller = VFControllerSettings(440, 50)
 
     function bla(controller)
         function ann(f)
-            return calculate_v_for_f_for_controller(controller,convert(Float64,f))
+            return calculate_v_for_f_for_controller(controller, convert(Float64, f))
         end
-        
+
         return ann
     end
 
 
     out = map(bla(controller), frequency_values)
-    curve = plot(frequency_values,out)
+    curve = plot(frequency_values, out)
     display(curve)
     num = readline()
 end
 
 
 
-part_1()
-#test()
-
-function part_2()
-end
-
+part_2()
 
 
 end
