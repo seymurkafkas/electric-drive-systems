@@ -258,6 +258,14 @@ function part_2()
 end
 
 
+function get_load_square_torque_speed_function(square_coefficient, constant_coefficient)
+    function torque_speed_function(speed)
+        return square_coefficient*speed^2 + constant_coefficient
+    end
+
+    return torque_speed_function
+end
+
 
 function test()
     f_lower = 10
