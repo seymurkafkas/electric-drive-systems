@@ -247,7 +247,11 @@ end
 
 function get_load_square_torque_speed_function(square_coefficient, constant_coefficient)
     function torque_speed_function(speed)
-        return square_coefficient * speed^2 + constant_coefficient
+        if speed >= 0 
+            return square_coefficient * speed^2 + constant_coefficient
+        else 
+            return - square_coefficient * speed^2 - constant_coefficient
+        end
     end
 
     return torque_speed_function
