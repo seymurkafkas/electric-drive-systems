@@ -214,7 +214,6 @@ function get_pullout_torque_for_frequency_function(motor, controller)
     return pullout_torque_function
 end
 
-
 function part_1()
     delta_n = 10
     delta_f = 10
@@ -243,8 +242,6 @@ function part_1()
     num = readline()
 end
 
-
-
 function get_load_square_torque_speed_function(square_coefficient, constant_coefficient)
     function torque_speed_function(speed)
         if speed >= 0 
@@ -259,7 +256,6 @@ end
 
 
 function part_2()
-
     n_lower = -3000
     n_upper = 6000
 
@@ -271,63 +267,58 @@ function part_2()
     data = [motor.n_n ^ 2   1 ;  0  1]
     values = [rated_torque ; load_torque_at_zero_speed] 
     load_parameters = inv(data) * values
-
-    println(data)
-
     load_torque_function = get_load_square_torque_speed_function(load_parameters[1] , load_parameters[2])
-
-    #println(rated_torque,' ', pullout_torque)
-    println(load_parameters)
-    torque_curve = plot_function(n_lower,n_upper,1,load_torque_function,false)
-    display(torque_curve)
+    load_torque_curve = plot_function(n_lower,n_upper,1,load_torque_function,false)
+    display(load_torque_curve)
     num = readline()
 end
 
 
 function part_3()
+    n_lower = -3000
+    n_upper = 6000
+    delta_n = 5
+
+    delta_f = 10
     f_lower = 10
     f_higher = 100
-    delta_f = 1
 
-    frequency_values = range(f_lower, f_higher, step=delta_f)
-
-    controller = VFControllerSettings(440, 50)
     default_supply_values = ACSupply(440, 50)
-    motor = make_motor_with_supply(default_induction_motor_params, default_supply_values)
+    controller = VFControllerSettings(440, 50)
+    motor :: InductionMotorWithSupply = make_motor_with_supply(default_induction_motor_params, default_supply_values)
 
     rated_torque = calculate_rated_torque(motor)
+    load_torque_at_zero_speed = 5
+    data = [motor.n_n ^ 2   1 ;  0  1]
+    values = [rated_torque ; load_torque_at_zero_speed] 
+    load_parameters = inv(data) * values
+    load_torque_function = get_load_square_torque_speed_function(load_parameters[1] , load_parameters[2])
+    torque_curve = plot_function(n_lower,n_upper,1,load_torque_function,true)
 
-    println(rated_torque)
-    data = [2920^2   1 ;  0  1]
-    results = [rated_torque ; 5] 
+    frequency_values = range(f_lower, f_higher, step=delta_f)
+    current_cumulative_plot = nothing
 
-    parameters = inv(data) * results
-    println(data)
-    println(parameters[1])
+    for f in frequency_values
+        set_motor_inputs_with_controller!(motor, controller, convert(Float64, f))
+        torque_speed_function = make_torque_for_speed_function(motor)
+        current_cumulative_plot = plot_function(n_lower, n_upper, delta_n, torque_speed_function, true)
+    end
 
-    load_torque_function = get_load_square_torque_speed_function(parameters[1] , parameters[2])
-
-    #println(rated_torque,' ', pullout_torque)
-    plot_function()
-    display(curve)
+    display(current_cumulative_plot)
     num = readline()
+
 end
-
-
-
 
 
 function part_4()
     f_lower = 10
     f_higher = 100
     delta_f = 1
-
     frequency_values = range(f_lower, f_higher, step=delta_f)
 
     controller = VFControllerSettings(440, 50)
     default_supply_values = ACSupply(440, 50)
     motor = make_motor_with_supply(default_induction_motor_params, default_supply_values)
-
 
     pullout_torque_for_frequency_function = get_pullout_torque_for_frequency_function(motor, controller)
     pullout_values_for_frequencies = map(pullout_torque_for_frequency_function, frequency_values)
@@ -336,10 +327,7 @@ function part_4()
     num = readline()
 end
 
-
-
-
-part_2()
+part_3()
 
 
 end
