@@ -2,7 +2,7 @@
 #by Stephen Chapman
 # Author: Seymur Kafkas 040170911
 
-module demo
+module DriveSystems
 
 struct ACSupply
     v_phase::Float64
@@ -130,11 +130,25 @@ function calculate_rated_torque(motor::InductionMotorWithSupply)
 end
 
 
-function make_torque_for_speed_function(motor::InductionMotorWithSupply)
+function make_torque_for_speed_function(motor::InductionMotorWithSupply )
     torque_for_slip_function = make_torque_for_slip_function(motor)
 
     function torque_for_speed(n_m)
         s = (1 - n_m / motor.n_sync)
+        torque = torque_for_slip_function(s)
+        return torque
+    end
+
+    return torque_for_speed
+end
+
+
+function make_torque_for_speed_function_angular(motor::InductionMotorWithSupply )
+    torque_for_slip_function = make_torque_for_slip_function(motor)
+    w_sync = 2 * motor.n_sync * pi / 60
+
+    function torque_for_speed(w_m)
+        s = (1 - w_m / w_sync)
         torque = torque_for_slip_function(s)
         return torque
     end
@@ -254,6 +268,14 @@ function get_load_square_torque_speed_function(square_coefficient, constant_coef
     return torque_speed_function
 end
 
+function convert_rpm_function_to_angular(func)
+    function angular_func(w_in_rad_per_second)
+        n_in_rpm = w_in_rad_per_second * 60 / (2* pi)
+        result = func(n_in_rpm)
+        return result
+    end
+return angular_func
+end
 
 function part_2()
     n_lower = -3000
@@ -327,7 +349,46 @@ function part_4()
     num = readline()
 end
 
-part_3()
+
+using DynamicalSystems
+
+function part_5()
+    frequency = 50
+    v_supply = 440
+
+    controller = VFControllerSettings(440,50)
+    default_supply_values = ACSupply(440,50)
+    motor = make_motor_with_supply(default_induction_motor_params,default_supply_values)
+
+    j_eq = 1.25
+
+    rated_torque = calculate_rated_torque(motor)
+    load_torque_at_zero_speed = 5
+    data = [motor.n_n ^ 2   1 ;  0  1]
+    values = [rated_torque ; load_torque_at_zero_speed] 
+    load_parameters = inv(data) * values
+
+    load_torque_function_rpm = get_load_square_torque_speed_function(load_parameters[1] , load_parameters[2])
+    load_torque_function = convert_rpm_function_to_angular(load_torque_function_rpm)
+    motor_torque_function = make_torque_for_speed_function_angular(motor)
+
+    function motor_load_dynamics(state_vector,parameters,time)
+        w = state_vector[1]
+        bs = state_vector[2]
+        dw = (1 / j_eq) * (motor_torque_function(w)-load_torque_function(w))
+        return SVector{2}(dw,bs)
+    end
+
+    initial_state = SVector{2}(0,0) #Start at standstill (0 velocity)
+
+    println(motor_load_dynamics(initial_state,nothing,nothing))
+    motor_load_system = ContinuousDynamicalSystem(motor_load_dynamics,initial_state,nothing)
+
+end
+
+
+
+part_5()
 
 
 end
