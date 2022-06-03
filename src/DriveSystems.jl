@@ -321,12 +321,12 @@ function part_3()
     values = [rated_torque; load_torque_at_zero_speed]
     load_parameters = inv(data) * values
     load_torque_function = get_load_square_torque_speed_function(load_parameters[1], load_parameters[2])
-    load_torque_plot = plot_function(n_lower, n_upper, 1, load_torque_function, false, xlabel="Speed in RPM", ylabel="Torque in Nm", label="Pump Load")
     frequency_values = range(f_lower, f_higher, step=delta_f)
 
     for f in frequency_values
         set_motor_inputs_with_controller!(motor, controller, f)
         torque_speed_function = make_torque_for_speed_function(motor)
+        load_torque_plot = plot_function(n_lower, n_upper, 1, load_torque_function, false, xlabel="Speed in RPM", ylabel="Torque in Nm", label="Pump Load")
         motor_torque_plot = plot_function(n_lower, n_upper, delta_n, torque_speed_function, true, label="IM ($f Hz)")
         #current_plot = plot(motor_torque_plot,load_torque_plot)
         savefig(motor_torque_plot, "motor_load_$f _Hz.svg")
