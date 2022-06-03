@@ -164,7 +164,7 @@ r2 = 0.5 # Rotor Referred (wrt Stator) Resistance
 x2_base = 2 # Rotor Base Referred (wrt Stator) Reactance
 rfe = 400 #Core loss Resistance
 xm_base = 250 # Magnetization Branch Base Reactance
-v_phase = 440 # Phase to Neutral Voltage
+v_phase = 440 / sqrt(3) # Phase to Neutral Voltage
 n_n = 2920 # Nominal Speed (RPM)
 
 default_induction_motor_params = InductionMotorParams(rs, p_pair,
@@ -180,6 +180,8 @@ default_induction_motor_params = InductionMotorParams(rs, p_pair,
 
 using Plots
 
+theme(:ggplot2)
+
 function make_one_dimensional_range(lower, upper, delta)
 
     length::Integer = floor((upper - lower) / delta)
@@ -187,14 +189,14 @@ function make_one_dimensional_range(lower, upper, delta)
     return result
 end
 
-function plot_function(x_lower, x_upper, x_delta, func, append::Bool)
+function plot_function(x_lower, x_upper, x_delta, func, append::Bool; kwargs...)
     domain_values = make_one_dimensional_range(x_lower, x_upper, x_delta)
     range_values = map(func, domain_values)
 
     if append
-        return plot!(domain_values, range_values)
+        return plot!(domain_values, range_values; kwargs...)
     else
-        return plot(domain_values, range_values)
+        return plot(domain_values, range_values; kwargs...)
     end
 end
 
@@ -213,9 +215,9 @@ function set_motor_inputs_with_controller!(motor::InductionMotorWithSupply, cont
     update_motor!(motor, frequency_new, v_phase_new)
 end
 
+
 function get_pullout_torque_for_frequency_function(motor, controller)
     function pullout_torque_function(frequency)
-        v_new = calculate_v_for_f_for_controller(controller, frequency)
         set_motor_inputs_with_controller!(motor, controller, frequency)
         pullout_torque = calculate_pullout_torque(motor)
         return pullout_torque
@@ -224,33 +226,6 @@ function get_pullout_torque_for_frequency_function(motor, controller)
     return pullout_torque_function
 end
 
-function part_1()
-    delta_n = 10
-    delta_f = 10
-
-    f_lower = 10
-    f_higher = 100
-
-    n_lower = 0
-    n_upper = 9000
-
-    controller = VFControllerSettings(440, 50)
-    default_supply_values = ACSupply(440, 50)
-    motor = make_motor_with_supply(default_induction_motor_params, default_supply_values)
-
-    frequency_values = range(f_lower, f_higher, step=delta_f)
-
-    for f in frequency_values
-        println(f)
-        set_motor_inputs_with_controller!(motor, controller, f)
-        torque_speed_function = make_torque_for_speed_function(motor)
-        current_cumulative_plot = plot_function(n_lower, n_upper, delta_n, torque_speed_function, true)
-        display(current_cumulative_plot)
-        #num = readline()
-    end
-
-    num = readline()
-end
 
 function get_load_square_torque_speed_function(square_coefficient, constant_coefficient)
     function torque_speed_function(speed)
@@ -264,6 +239,7 @@ function get_load_square_torque_speed_function(square_coefficient, constant_coef
     return torque_speed_function
 end
 
+
 function convert_rpm_function_to_angular(func)
     function angular_func(w_in_rad_per_second)
         n_in_rpm = w_in_rad_per_second * 60 / (2 * pi)
@@ -273,16 +249,45 @@ function convert_rpm_function_to_angular(func)
     return angular_func
 end
 
+
 function angular_speed_to_rpm(w_in_rad_per_second)
     n_in_rpm = w_in_rad_per_second * 60 / (2 * pi)
     return n_in_rpm
 end
 
+
+function part_1()
+    delta_n = 2
+    delta_f = 10
+
+    f_lower = 10
+    f_higher = 100
+
+    n_lower = -3000
+    n_upper = 6000
+
+    controller = VFControllerSettings(440 / sqrt(3), 50)
+    default_supply_values = ACSupply(440 / sqrt(3), 50)
+    motor = make_motor_with_supply(default_induction_motor_params, default_supply_values)
+    current_cumulative_plot = plot!(title="Torque vs Speed Curve", xlabel="Speed in RPM", ylabel="Induced Torque in Nm", size=(1680, 1000))
+    frequency_values = range(f_lower, f_higher, step=delta_f)
+
+    for f in frequency_values
+        set_motor_inputs_with_controller!(motor, controller, f)
+        torque_speed_function = make_torque_for_speed_function(motor)
+        current_cumulative_plot = plot_function(n_lower, n_upper, delta_n, torque_speed_function, true; label="$f Hz")
+    end
+
+    savefig(current_cumulative_plot, "cumulative_plot.svg")
+
+end
+
+
 function part_2()
     n_lower = -3000
     n_upper = 6000
 
-    default_supply_values = ACSupply(440, 50)
+    default_supply_values = ACSupply(440 / sqrt(3), 50)
     motor::InductionMotorWithSupply = make_motor_with_supply(default_induction_motor_params, default_supply_values)
     rated_torque = calculate_rated_torque(motor)
 
@@ -290,10 +295,10 @@ function part_2()
     data = [motor.n_n^2 1; 0 1]
     values = [rated_torque; load_torque_at_zero_speed]
     load_parameters = inv(data) * values
+
     load_torque_function = get_load_square_torque_speed_function(load_parameters[1], load_parameters[2])
-    load_torque_curve = plot_function(n_lower, n_upper, 1, load_torque_function, false)
-    display(load_torque_curve)
-    num = readline()
+    load_torque_plot = plot_function(n_lower, n_upper, 1, load_torque_function, false, xlabel="Speed in RPM", ylabel="Load Torque in Nm", label="Pump Load")
+    savefig(load_torque_plot, "load_torque.svg")
 end
 
 
@@ -306,8 +311,8 @@ function part_3()
     f_lower = 10
     f_higher = 100
 
-    default_supply_values = ACSupply(440, 50)
-    controller = VFControllerSettings(440, 50)
+    default_supply_values = ACSupply(440 / sqrt(3), 50)
+    controller = VFControllerSettings(440 / sqrt(3), 50)
     motor::InductionMotorWithSupply = make_motor_with_supply(default_induction_motor_params, default_supply_values)
 
     rated_torque = calculate_rated_torque(motor)
@@ -316,20 +321,16 @@ function part_3()
     values = [rated_torque; load_torque_at_zero_speed]
     load_parameters = inv(data) * values
     load_torque_function = get_load_square_torque_speed_function(load_parameters[1], load_parameters[2])
-    torque_curve = plot_function(n_lower, n_upper, 1, load_torque_function, true)
-
+    load_torque_plot = plot_function(n_lower, n_upper, 1, load_torque_function, false, xlabel="Speed in RPM", ylabel="Torque in Nm", label="Pump Load")
     frequency_values = range(f_lower, f_higher, step=delta_f)
-    current_cumulative_plot = nothing
 
     for f in frequency_values
         set_motor_inputs_with_controller!(motor, controller, f)
         torque_speed_function = make_torque_for_speed_function(motor)
-        current_cumulative_plot = plot_function(n_lower, n_upper, delta_n, torque_speed_function, true)
+        motor_torque_plot = plot_function(n_lower, n_upper, delta_n, torque_speed_function, true, label="IM ($f Hz)")
+        #current_plot = plot(motor_torque_plot,load_torque_plot)
+        savefig(motor_torque_plot, "motor_load_$f _Hz.svg")
     end
-
-    display(current_cumulative_plot)
-    num = readline()
-
 end
 
 
@@ -339,15 +340,14 @@ function part_4()
     delta_f = 1
     frequency_values = range(f_lower, f_higher, step=delta_f)
 
-    controller = VFControllerSettings(440, 50)
-    default_supply_values = ACSupply(440, 50)
+    controller = VFControllerSettings(440 / sqrt(3), 50)
+    default_supply_values = ACSupply(440 / sqrt(3), 50)
     motor = make_motor_with_supply(default_induction_motor_params, default_supply_values)
 
     pullout_torque_for_frequency_function = get_pullout_torque_for_frequency_function(motor, controller)
     pullout_values_for_frequencies = map(pullout_torque_for_frequency_function, frequency_values)
-    curve = plot(frequency_values, pullout_values_for_frequencies)
-    display(curve)
-    num = readline()
+    v_f_control_plot = plot(frequency_values, pullout_values_for_frequencies, xlabel="Frequency in Hz", ylabel="Pullout Torque in Nm", label="V/F control")
+    savefig(v_f_control_plot, "vf_control.svg")
 end
 
 
@@ -355,10 +355,10 @@ using DynamicalSystems
 
 function part_5()
     frequency = 50
-    v_supply = 440
+    v_supply = 440 / sqrt(3)
 
-    controller = VFControllerSettings(440, 50)
-    default_supply_values = ACSupply(440, 50)
+    controller = VFControllerSettings(v_supply, frequency)
+    default_supply_values = ACSupply(v_supply, frequency)
     motor = make_motor_with_supply(default_induction_motor_params, default_supply_values)
 
     #Calculate the Load Torque Parameters
@@ -382,7 +382,7 @@ function part_5()
 
     initial_state = SVector{2}(0.0, 0.0) #Start at standstill (0 velocity), the second state is a dummy variable
     motor_load_system = ContinuousDynamicalSystem(motor_load_dynamics, initial_state, nothing)
-    total_simulation_time_in_s = 10
+    total_simulation_time_in_s = 20
     record_state_delta_t = 0.04 # Time step for recording the state data (Not the time step used in simulation)
     tr = trajectory(motor_load_system, total_simulation_time_in_s, save_idxs=[1], Δt=record_state_delta_t)
     time_array = collect(range(0, total_simulation_time_in_s, length(tr.data)))
@@ -395,13 +395,36 @@ function part_5()
     angular_speeds_array = map(unroll, angular_speeds_array)
     rpm_speeds_array = map(angular_speed_to_rpm, angular_speeds_array)
 
-    res = plot(time_array, rpm_speeds_array)
-
-    display(res)
-    input = readline()
+    motor_speed_time_plot = plot(time_array, rpm_speeds_array, xlabel="Time in s", ylabel="Speed in RPM", label="50 Hz Control")
+    savefig(motor_speed_time_plot, "motor_speed_time.svg")
 end
 
-part_5()
 
+function part_5_fake_voltage_boost()
+    controller = VFControllerSettings(440 / sqrt(3), 50)
+    default_supply_values = ACSupply(440 / sqrt(3), 50)
+    motor = make_motor_with_supply(default_induction_motor_params, default_supply_values)
+
+    pullout = calculate_pullout_torque(motor)
+    pullout_torque_vs_f = get_pullout_torque_for_frequency_function(motor, controller)
+
+    f_lower = 10
+    f_higher = 100
+    delta_f = 1
+
+    function new_pull_out_for_frequency_function(f)
+        if f < 50
+            return pullout
+        else
+            return pullout_torque_vs_f(f)
+        end
+    end
+
+    new_pullout_torque_curve = plot_function(f_lower, f_higher, delta_f, new_pull_out_for_frequency_function, false, xlabel="Frequency in Hz", ylabel="Pullout Torque in Nm", label="Voltage Boost V/F control")
+    savefig(new_pullout_torque_curve, "voltage_boost.svg")
+end
+
+
+part_3()
 
 end
